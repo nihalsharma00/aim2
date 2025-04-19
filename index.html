@@ -1,219 +1,131 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shooting Game</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body, html {
-            height: 100%;
-            width: 100%;
-            background: #000;
-            overflow: hidden;
-        }
-
-        #gameContainer {
-            position: relative;
-            width: 100%;
-            height: 100%;
-        }
-
-        #gameBackground {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        #crosshair {
-            position: absolute;
-            width: 30px;
-            height: 30px;
-            pointer-events: none;
-            z-index: 10;
-        }
-
-        #score, #timer {
-            position: absolute;
-            font-size: 20px;
-            color: white;
-            z-index: 20;
-        }
-
-        #score {
-            top: 10px;
-            left: 10px;
-        }
-
-        #timer {
-            top: 10px;
-            right: 10px;
-        }
-
-        #settingsDialog {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
-            padding: 20px;
-            display: none;
-            z-index: 30;
-            text-align: center;
-        }
-
-        #settingsDialog input, #settingsDialog button {
-            margin-top: 10px;
-            padding: 10px;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ultimate Shooting Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: Arial, sans-serif; }
+    video#bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; }
+    #ui { position: fixed; width: 100%; top: 0; padding: 10px 20px; display: flex; justify-content: space-between; color: white; font-size: 20px; text-shadow: 1px 1px 5px black; }
+    #crosshair { position: absolute; width: 30px; height: 30px; pointer-events: none; transform: translate(-50%, -50%); transition: transform 0.05s linear; z-index: 1000; }
+    .target { position: absolute; border-radius: 50%; background-color: red; z-index: 1; transition: transform 0.2s ease-out; animation: popIn 0.2s ease; }
+    @keyframes popIn { from { transform: scale(0); } to { transform: scale(1); } }
+    .floating-text { position: absolute; color: yellow; font-size: 18px; font-weight: bold; animation: floatUp 1s ease-out forwards; pointer-events: none; }
+    @keyframes floatUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-50px); } }
+    #start-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
+    #start-screen input { width: 200px; padding: 10px; font-size: 18px; margin-top: 10px; }
+    #start-screen button { padding: 10px 20px; font-size: 18px; margin-top: 10px; cursor: pointer; }
+  </style>
 </head>
 <body>
-    <!-- Game Container -->
-    <div id="gameContainer">
-        <!-- Background Video -->
-        <video id="gameBackground" autoplay loop muted>
-            <source src="https://videocdn.cdnpk.net/videos/4ef50a66-8e72-5444-90ea-97f432d94e59/horizontal/previews/watermarked/small.mp4" type="video/mp4">
-        </video>
+  <video id="bg" autoplay loop muted>
+    <source src="https://videocdn.cdnpk.net/videos/4ef50a66-8e72-5444-90ea-97f432d94e59/horizontal/previews/watermarked/small.mp4" type="video/mp4" />
+  </video>
+  <div id="start-screen">
+    <h1>Ultimate Shooting Game</h1>
+    <label>Game Time (30-100 seconds):</label>
+    <input type="number" id="game-time" min="30" max="100" value="60" />
+    <br />
+    <button onclick="startGame()">Start Game</button>
+  </div>
+  <div id="ui">
+    <div id="score">Score: 0</div>
+    <div id="timer">Time: 0</div>
+  </div>
+  <img id="crosshair" src="https://cdn-icons-png.flaticon.com/128/4018/4018979.png" />
+  <audio id="shoot-sound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_c9cf83a92a.mp3" preload="auto"></audio>
+  <audio id="hit-sound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_8fbf4f14d3.mp3" preload="auto"></audio>
 
-        <!-- Crosshair -->
-        <img id="crosshair" src="https://cdn-icons-png.flaticon.com/128/4018/4018979.png" alt="Crosshair">
+  <script>
+    const crosshair = document.getElementById("crosshair");
+    const scoreEl = document.getElementById("score");
+    const timerEl = document.getElementById("timer");
+    const shootSound = document.getElementById("shoot-sound");
+    const hitSound = document.getElementById("hit-sound");
+    let score = 0, timeLeft = 0, gameInterval, spawnInterval;
+    let targetSize = 80;
 
-        <!-- Score Display -->
-        <div id="score">Score: 0</div>
+    document.addEventListener("mousemove", e => moveCrosshair(e.clientX, e.clientY));
+    document.addEventListener("touchmove", e => moveCrosshair(e.touches[0].clientX, e.touches[0].clientY));
 
-        <!-- Timer Display -->
-        <div id="timer">Time: 60</div>
-    </div>
+    function moveCrosshair(x, y) {
+      crosshair.style.left = x + "px";
+      crosshair.style.top = y + "px";
+    }
 
-    <!-- Settings Dialog (optional) -->
-    <div id="settingsDialog">
-        <label for="gameTime">Game Time (seconds):</label>
-        <input type="number" id="gameTime" min="30" max="100" value="60">
-        <button id="startGame">Start Game</button>
-    </div>
+    document.addEventListener("click", shoot);
+    document.addEventListener("touchstart", shoot);
+    document.addEventListener("keydown", e => { if (e.code === "Space") shoot(); });
 
-    <script>
-        // Game variables
-        let gameTime = 60; // Default game time
-        let score = 0;
-        let timerInterval;
-        let gameInterval;
-        let targets = [];
-        let gameStarted = false;
-
-        // DOM Elements
-        const crosshair = document.getElementById('crosshair');
-        const scoreDisplay = document.getElementById('score');
-        const timerDisplay = document.getElementById('timer');
-        const settingsDialog = document.getElementById('settingsDialog');
-        const startGameButton = document.getElementById('startGame');
-        const gameTimeInput = document.getElementById('gameTime');
-
-        // Update crosshair position
-        function updateCrosshairPosition(event) {
-            const mouseX = event.clientX;
-            const mouseY = event.clientY;
-
-            crosshair.style.left = `${mouseX - 15}px`; // Center the crosshair
-            crosshair.style.top = `${mouseY - 15}px`;
+    function shoot() {
+      shootSound.currentTime = 0;
+      shootSound.play();
+      const chRect = crosshair.getBoundingClientRect();
+      const cx = chRect.left + chRect.width / 2;
+      const cy = chRect.top + chRect.height / 2;
+      document.querySelectorAll(".target").forEach(target => {
+        const rect = target.getBoundingClientRect();
+        const tx = rect.left + rect.width / 2;
+        const ty = rect.top + rect.height / 2;
+        const dist = Math.hypot(tx - cx, ty - cy);
+        if (dist < rect.width / 2) {
+          hitSound.currentTime = 0;
+          hitSound.play();
+          score++;
+          scoreEl.textContent = `Score: ${score}`;
+          const float = document.createElement("div");
+          float.className = "floating-text";
+          float.innerText = "+1";
+          float.style.left = tx + "px";
+          float.style.top = ty + "px";
+          document.body.appendChild(float);
+          setTimeout(() => float.remove(), 1000);
+          target.remove();
+          targetSize = Math.max(20, targetSize - 1);
         }
+      });
+    }
 
-        // Target object
-        class Target {
-            constructor() {
-                this.size = Math.random() * 50 + 20; // Random size between 20 and 70px
-                this.x = Math.random() * window.innerWidth;
-                this.y = Math.random() * window.innerHeight;
-                this.element = document.createElement('div');
-                this.element.classList.add('target');
-                this.element.style.width = `${this.size}px`;
-                this.element.style.height = `${this.size}px`;
-                this.element.style.backgroundColor = 'red';
-                this.element.style.position = 'absolute';
-                this.element.style.borderRadius = '50%';
-                this.element.style.left = `${this.x}px`;
-                this.element.style.top = `${this.y}px`;
+    function spawnTarget() {
+      const target = document.createElement("div");
+      target.className = "target";
+      const size = targetSize;
+      const x = Math.random() * (window.innerWidth - size);
+      const y = Math.random() * (window.innerHeight - size);
+      target.style.width = size + "px";
+      target.style.height = size + "px";
+      target.style.left = x + "px";
+      target.style.top = y + "px";
+      target.style.position = "absolute";
+      document.body.appendChild(target);
+      setTimeout(() => target.remove(), 5000);
+    }
 
-                document.body.appendChild(this.element);
-            }
+    function updateTimer() {
+      timeLeft--;
+      timerEl.textContent = `Time: ${timeLeft}`;
+      if (timeLeft <= 0) {
+        clearInterval(gameInterval);
+        clearInterval(spawnInterval);
+        alert("Game Over! Your Score: " + score);
+        location.reload();
+      }
+    }
 
-            hit() {
-                this.element.remove();
-            }
-        }
-
-        // Create a random target
-        function createTarget() {
-            const target = new Target();
-            targets.push(target);
-        }
-
-        // Check if the crosshair overlaps with a target
-        function checkHit() {
-            targets.forEach(target => {
-                const targetRect = target.element.getBoundingClientRect();
-                const crosshairRect = crosshair.getBoundingClientRect();
-
-                // Simple collision detection
-                if (crosshairRect.left < targetRect.right && crosshairRect.right > targetRect.left &&
-                    crosshairRect.top < targetRect.bottom && crosshairRect.bottom > targetRect.top) {
-                    target.hit();
-                    score++;
-                    scoreDisplay.textContent = `Score: ${score}`;
-                }
-            });
-        }
-
-        // Start game
-        function startGame() {
-            gameStarted = true;
-            score = 0;
-            gameTime = parseInt(gameTimeInput.value) || 60;
-            scoreDisplay.textContent = `Score: ${score}`;
-            timerDisplay.textContent = `Time: ${gameTime}`;
-            settingsDialog.style.display = 'none';
-
-            // Start the timer
-            timerInterval = setInterval(() => {
-                if (gameTime > 0) {
-                    gameTime--;
-                    timerDisplay.textContent = `Time: ${gameTime}`;
-                } else {
-                    clearInterval(timerInterval);
-                    clearInterval(gameInterval);
-                    alert(`Game Over! Final Score: ${score}`);
-                }
-            }, 1000);
-
-            // Game loop to create targets
-            gameInterval = setInterval(() => {
-                createTarget();
-            }, 1000);
-
-            // Set the interval to check for hits
-            setInterval(checkHit, 50);
-        }
-
-        // Start button event
-        startGameButton.addEventListener('click', startGame);
-
-        // Mouse and touch events for moving the crosshair
-        document.addEventListener('mousemove', updateCrosshairPosition);
-        document.addEventListener('touchmove', (event) => {
-            updateCrosshairPosition(event.touches[0]);
-        });
-
-        // Show settings dialog initially
-        settingsDialog.style.display = 'block';
-    </script>
+    function startGame() {
+      const inputTime = parseInt(document.getElementById("game-time").value);
+      if (inputTime < 30 || inputTime > 100) return alert("Please enter time between 30-100 seconds");
+      document.getElementById("start-screen").style.display = "none";
+      score = 0;
+      targetSize = 80;
+      timeLeft = inputTime;
+      scoreEl.textContent = "Score: 0";
+      timerEl.textContent = `Time: ${timeLeft}`;
+      gameInterval = setInterval(updateTimer, 1000);
+      spawnInterval = setInterval(spawnTarget, 800);
+    }
+  </script>
 </body>
 </html>
