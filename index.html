@@ -1,236 +1,219 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Aim Practice Game</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body, html { width: 100%; height: 100%; overflow: hidden; font-family: Arial, sans-serif; }
-    
-    /* Fixed background video */
-    video.bg {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      z-index: -2;
-    }
-    
-    #crosshair {
-      position: fixed;
-      width: 30px;
-      height: 30px;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      z-index: 1000;
-    }
-    
-    .game-container {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      cursor: none;
-    }
-    
-    .target {
-      position: absolute;
-      width: 50px;
-      height: 50px;
-      background: red;
-      border-radius: 50%;
-      box-shadow: 0 0 10px white;
-    }
-    
-    .hud {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      color: white;
-      font-size: 20px;
-      z-index: 999;
-    }
-    
-    .settings {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      color: white;
-      background: rgba(0,0,0,0.6);
-      padding: 10px;
-      border-radius: 10px;
-      z-index: 999;
-    }
-    
-    .settings select, .settings input, .settings button {
-      margin: 5px 0;
-      padding: 5px;
-      border-radius: 5px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shooting Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            height: 100%;
+            width: 100%;
+            background: #000;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        #gameBackground {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #crosshair {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #score, #timer {
+            position: absolute;
+            font-size: 20px;
+            color: white;
+            z-index: 20;
+        }
+
+        #score {
+            top: 10px;
+            left: 10px;
+        }
+
+        #timer {
+            top: 10px;
+            right: 10px;
+        }
+
+        #settingsDialog {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            display: none;
+            z-index: 30;
+            text-align: center;
+        }
+
+        #settingsDialog input, #settingsDialog button {
+            margin-top: 10px;
+            padding: 10px;
+        }
+    </style>
 </head>
 <body>
-  <!-- Background Video -->
-  <video class="bg" autoplay muted loop>
-    <source src="https://cdn.coverr.co/videos/coverr-guns-ammo-and-bullets-5850/1080p.mp4" type="video/mp4">
-    Your browser does not support the video tag.
-  </video>
+    <!-- Game Container -->
+    <div id="gameContainer">
+        <!-- Background Video -->
+        <video id="gameBackground" autoplay loop muted>
+            <source src="https://videocdn.cdnpk.net/videos/4ef50a66-8e72-5444-90ea-97f432d94e59/horizontal/previews/watermarked/small.mp4" type="video/mp4">
+        </video>
 
-  <img id="crosshair" src="https://upload.wikimedia.org/wikipedia/commons/3/3f/Red_dot_sight_reticle.png" />
+        <!-- Crosshair -->
+        <img id="crosshair" src="crosshair.png" alt="Crosshair">
 
-  <div class="game-container" id="play-area"></div>
+        <!-- Score Display -->
+        <div id="score">Score: 0</div>
 
-  <div class="hud">
-    <div id="score">Score: 0</div>
-    <div id="timer">Time: 0</div>
-  </div>
+        <!-- Timer Display -->
+        <div id="timer">Time: 60</div>
+    </div>
 
-  <div class="settings">
-    <label for="time-input">Practice Time (30–100 sec):</label>
-    <input type="number" id="time-input" min="30" max="100" placeholder="e.g. 60"/><br/>
+    <!-- Settings Dialog (optional) -->
+    <div id="settingsDialog">
+        <label for="gameTime">Game Time (seconds):</label>
+        <input type="number" id="gameTime" min="30" max="100" value="60">
+        <button id="startGame">Start Game</button>
+    </div>
 
-    <label for="gun-type">Gun Type:</label>
-    <select id="gun-type">
-      <option value="">Select Type</option>
-      <option value="shotgun">Shotgun</option>
-      <option value="smg">SMG</option>
-      <option value="sniper">Sniper</option>
-      <option value="assault">Assault Rifle</option>
-    </select>
+    <script>
+        // Game variables
+        let gameTime = 60; // Default game time
+        let score = 0;
+        let timerInterval;
+        let gameInterval;
+        let targets = [];
+        let gameStarted = false;
 
-    <label for="gun-model">Gun:</label>
-    <select id="gun-model" disabled>
-      <option value="">Select Gun</option>
-    </select><br/>
+        // DOM Elements
+        const crosshair = document.getElementById('crosshair');
+        const scoreDisplay = document.getElementById('score');
+        const timerDisplay = document.getElementById('timer');
+        const settingsDialog = document.getElementById('settingsDialog');
+        const startGameButton = document.getElementById('startGame');
+        const gameTimeInput = document.getElementById('gameTime');
 
-    <button id="start-btn">Start Game</button>
-  </div>
+        // Update crosshair position
+        function updateCrosshairPosition(event) {
+            const mouseX = event.clientX;
+            const mouseY = event.clientY;
 
-  <script>
-    const playArea = document.getElementById('play-area');
-    const crosshair = document.getElementById('crosshair');
-    const scoreEl = document.getElementById('score');
-    const timerEl = document.getElementById('timer');
-    const startBtn = document.getElementById('start-btn');
-    const timeInput = document.getElementById('time-input');
-    const gunTypeSelect = document.getElementById('gun-type');
-    const gunModelSelect = document.getElementById('gun-model');
-
-    let score = 0;
-    let timeLeft = 0;
-    let gameInterval;
-    let target;
-    let targetSize = 50;
-    let currentGun = "";
-
-    const gunModels = {
-      shotgun: ["SG-04 Shotgun", "870 Pump-Action Shotgun", "Winchester 1887", "Boneduster"],
-      smg: ["Uzi", "Thompson SMG", "Vector"],
-      sniper: ["Kar98k", "Mosin Nagant", "M24", "AWM"],
-      assault: ["M4-16", "AK-47", "Aug", "DB"]
-    };
-
-    function updateGunModels() {
-      gunModelSelect.innerHTML = `<option value="">Select Gun</option>`;
-      if (gunTypeSelect.value) {
-        gunModels[gunTypeSelect.value].forEach(model => {
-          gunModelSelect.innerHTML += `<option value="${model}">${model}</option>`;
-        });
-        gunModelSelect.disabled = false;
-      } else {
-        gunModelSelect.disabled = true;
-      }
-    }
-
-    function createTarget() {
-      if (target) target.remove();
-
-      target = document.createElement('div');
-      target.classList.add('target');
-
-      const maxLeft = playArea.clientWidth - targetSize;
-      const maxTop = playArea.clientHeight - targetSize;
-
-      const x = Math.random() * maxLeft;
-      const y = Math.random() * maxTop;
-
-      target.style.left = `${x}px`;
-      target.style.top = `${y}px`;
-      target.style.width = `${targetSize}px`;
-      target.style.height = `${targetSize}px`;
-
-      playArea.appendChild(target);
-    }
-
-    function updateScore() {
-      score++;
-      scoreEl.textContent = `Score: ${score}`;
-      if (score % 5 === 0 && targetSize > 20) targetSize -= 5;
-      createTarget();
-    }
-
-    function shoot() {
-      if (!target) return;
-
-      const crossRect = crosshair.getBoundingClientRect();
-      const targetRect = target.getBoundingClientRect();
-
-      const hit =
-        crossRect.left < targetRect.right &&
-        crossRect.right > targetRect.left &&
-        crossRect.top < targetRect.bottom &&
-        crossRect.bottom > targetRect.top;
-
-      if (hit) updateScore();
-    }
-
-    function startGame() {
-      const inputTime = parseInt(timeInput.value);
-      if (isNaN(inputTime) || inputTime < 30 || inputTime > 100) {
-        alert("Please enter a valid time between 30 and 100 seconds.");
-        return;
-      }
-
-      score = 0;
-      timeLeft = inputTime;
-      targetSize = 50;
-      scoreEl.textContent = `Score: ${score}`;
-      timerEl.textContent = `Time: ${timeLeft}`;
-      playArea.innerHTML = '';
-      createTarget();
-
-      gameInterval = setInterval(() => {
-        timeLeft--;
-        timerEl.textContent = `Time: ${timeLeft}`;
-        if (timeLeft <= 0) {
-          clearInterval(gameInterval);
-          if (target) target.remove();
-          alert(`Time's up! Final Score: ${score}`);
+            crosshair.style.left = `${mouseX - 15}px`; // Center the crosshair
+            crosshair.style.top = `${mouseY - 15}px`;
         }
-      }, 1000);
-    }
 
-    document.addEventListener('mousemove', (e) => {
-      crosshair.style.left = `${e.clientX}px`;
-      crosshair.style.top = `${e.clientY}px`;
-    });
+        // Target object
+        class Target {
+            constructor() {
+                this.size = Math.random() * 50 + 20; // Random size between 20 and 70px
+                this.x = Math.random() * window.innerWidth;
+                this.y = Math.random() * window.innerHeight;
+                this.element = document.createElement('div');
+                this.element.classList.add('target');
+                this.element.style.width = `${this.size}px`;
+                this.element.style.height = `${this.size}px`;
+                this.element.style.backgroundColor = 'red';
+                this.element.style.position = 'absolute';
+                this.element.style.borderRadius = '50%';
+                this.element.style.left = `${this.x}px`;
+                this.element.style.top = `${this.y}px`;
 
-    document.addEventListener('touchmove', (e) => {
-      const touch = e.touches[0];
-      crosshair.style.left = `${touch.clientX}px`;
-      crosshair.style.top = `${touch.clientY}px`;
-    });
+                document.body.appendChild(this.element);
+            }
 
-    document.addEventListener('click', shoot);
-    document.addEventListener('touchstart', shoot);
-    document.addEventListener('keydown', (e) => {
-      if (e.code === 'Space') shoot();
-    });
+            hit() {
+                this.element.remove();
+            }
+        }
 
-    startBtn.addEventListener('click', startGame);
-    gunTypeSelect.addEventListener('change', updateGunModels);
-  </script>
+        // Create a random target
+        function createTarget() {
+            const target = new Target();
+            targets.push(target);
+        }
+
+        // Check if the crosshair overlaps with a target
+        function checkHit() {
+            targets.forEach(target => {
+                const targetRect = target.element.getBoundingClientRect();
+                const crosshairRect = crosshair.getBoundingClientRect();
+
+                // Simple collision detection
+                if (crosshairRect.left < targetRect.right && crosshairRect.right > targetRect.left &&
+                    crosshairRect.top < targetRect.bottom && crosshairRect.bottom > targetRect.top) {
+                    target.hit();
+                    score++;
+                    scoreDisplay.textContent = `Score: ${score}`;
+                }
+            });
+        }
+
+        // Start game
+        function startGame() {
+            gameStarted = true;
+            score = 0;
+            gameTime = parseInt(gameTimeInput.value) || 60;
+            scoreDisplay.textContent = `Score: ${score}`;
+            timerDisplay.textContent = `Time: ${gameTime}`;
+            settingsDialog.style.display = 'none';
+
+            // Start the timer
+            timerInterval = setInterval(() => {
+                if (gameTime > 0) {
+                    gameTime--;
+                    timerDisplay.textContent = `Time: ${gameTime}`;
+                } else {
+                    clearInterval(timerInterval);
+                    clearInterval(gameInterval);
+                    alert(`Game Over! Final Score: ${score}`);
+                }
+            }, 1000);
+
+            // Game loop to create targets
+            gameInterval = setInterval(() => {
+                createTarget();
+            }, 1000);
+
+            // Set the interval to check for hits
+            setInterval(checkHit, 50);
+        }
+
+        // Start button event
+        startGameButton.addEventListener('click', startGame);
+
+        // Mouse and touch events for moving the crosshair
+        document.addEventListener('mousemove', updateCrosshairPosition);
+        document.addEventListener('touchmove', (event) => {
+            updateCrosshairPosition(event.touches[0]);
+        });
+
+        // Show settings dialog initially
+        settingsDialog.style.display = 'block';
+    </script>
 </body>
 </html>
