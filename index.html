@@ -7,7 +7,16 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body, html { width: 100%; height: 100%; overflow: hidden; font-family: Arial, sans-serif; }
-    video.bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -2; }
+    /* Background video style */
+    video.bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: -2;
+    }
     #crosshair {
       position: fixed;
       width: 30px;
@@ -56,6 +65,7 @@
   </style>
 </head>
 <body>
+  <!-- Background Video -->
   <video class="bg" autoplay muted loop>
     <source src="https://cdn.coverr.co/videos/coverr-guns-ammo-and-bullets-5850/1080p.mp4" type="video/mp4">
   </video>
@@ -91,154 +101,128 @@
   </div>
 
   <script>
-    const crosshair = document.getElementById("crosshair");
-    const playArea = document.getElementById("play-area");
-    const scoreEl = document.getElementById("score");
-    const timerEl = document.getElementById("timer");
-    const timeInput = document.getElementById("time-input");
-    const gunType = document.getElementById("gun-type");
-    const gunModel = document.getElementById("gun-model");
-    const startBtn = document.getElementById("start-btn");
+    const playArea = document.getElementById('play-area');
+    const crosshair = document.getElementById('crosshair');
+    const scoreEl = document.getElementById('score');
+    const timerEl = document.getElementById('timer');
+    const startBtn = document.getElementById('start-btn');
+    const timeInput = document.getElementById('time-input');
+    const gunTypeSelect = document.getElementById('gun-type');
+    const gunModelSelect = document.getElementById('gun-model');
 
     let score = 0;
-    let timeLeft = 60;
+    let timeLeft = 0;
     let gameInterval;
     let target;
-    let selectedGun = "";
-    let fireCooldown = false;
+    let targetSize = 50;
+    let currentGun = "";
 
-    const guns = {
-      shotgun: ['SG-04 Shotgun', '870 Pump-Action Shotgun', 'Winchester 1887', 'Boneduster'],
-      smg: ['Uzi', 'Thompson SMG', 'Vector'],
-      sniper: ['Kar98k', 'Mosin Nagant', 'M24', 'AWM'],
-      assault: ['M4-16', 'AK-47', 'Aug', 'DB']
+    const gunModels = {
+      shotgun: ["SG-04 Shotgun", "870 Pump-Action Shotgun", "Winchester 1887", "Boneduster"],
+      smg: ["Uzi", "Thompson SMG", "Vector"],
+      sniper: ["Kar98k", "Mosin Nagant", "M24", "AWM"],
+      assault: ["M4-16", "AK-47", "Aug", "DB"]
     };
 
-    const gunProperties = {
-      "SG-04 Shotgun": { fireRate: 800, spread: 30 },
-      "870 Pump-Action Shotgun": { fireRate: 1000, spread: 40 },
-      "Winchester 1887": { fireRate: 900, spread: 35 },
-      "Boneduster": { fireRate: 700, spread: 50 },
-
-      "Uzi": { fireRate: 200, spread: 10 },
-      "Thompson SMG": { fireRate: 250, spread: 15 },
-      "Vector": { fireRate: 150, spread: 12 },
-
-      "Kar98k": { fireRate: 1200, spread: 5 },
-      "Mosin Nagant": { fireRate: 1300, spread: 4 },
-      "M24": { fireRate: 1100, spread: 3 },
-      "AWM": { fireRate: 1500, spread: 2 },
-
-      "M4-16": { fireRate: 300, spread: 8 },
-      "AK-47": { fireRate: 350, spread: 10 },
-      "Aug": { fireRate: 250, spread: 7 },
-      "DB": { fireRate: 400, spread: 9 }
-    };
-
-    gunType.addEventListener('change', () => {
-      const type = gunType.value;
-      gunModel.innerHTML = '<option value="">Select Gun</option>';
-      gunModel.disabled = !type;
-      if (guns[type]) {
-        guns[type].forEach(gun => {
-          const option = document.createElement('option');
-          option.value = gun;
-          option.textContent = gun;
-          gunModel.appendChild(option);
+    function updateGunModels() {
+      gunModelSelect.innerHTML = `<option value="">Select Gun</option>`;
+      if (gunTypeSelect.value) {
+        gunModels[gunTypeSelect.value].forEach(model => {
+          gunModelSelect.innerHTML += `<option value="${model}">${model}</option>`;
         });
+        gunModelSelect.disabled = false;
+      } else {
+        gunModelSelect.disabled = true;
       }
-    });
-
-    gunModel.addEventListener('change', () => {
-      selectedGun = gunModel.value;
-    });
+    }
 
     function createTarget() {
-      const size = 50;
-      const x = Math.random() * (window.innerWidth - size);
-      const y = Math.random() * (window.innerHeight - size);
+      if (target) target.remove();
 
-      target = document.createElement("div");
-      target.className = "target";
+      target = document.createElement('div');
+      target.classList.add('target');
+
+      const maxLeft = playArea.clientWidth - targetSize;
+      const maxTop = playArea.clientHeight - targetSize;
+
+      const x = Math.random() * maxLeft;
+      const y = Math.random() * maxTop;
+
       target.style.left = `${x}px`;
       target.style.top = `${y}px`;
-      target.style.width = target.style.height = `${size}px`;
+      target.style.width = `${targetSize}px`;
+      target.style.height = `${targetSize}px`;
 
       playArea.appendChild(target);
     }
 
-    function shoot(x, y) {
-      if (fireCooldown || !selectedGun) return;
+    function updateScore() {
+      score++;
+      scoreEl.textContent = `Score: ${score}`;
+      if (score % 5 === 0 && targetSize > 20) targetSize -= 5;
+      createTarget();
+    }
 
-      fireCooldown = true;
-      const gun = gunProperties[selectedGun];
-      setTimeout(() => fireCooldown = false, gun.fireRate);
+    function shoot() {
+      if (!target) return;
 
-      const targetBox = target.getBoundingClientRect();
-      const cx = x;
-      const cy = y;
+      const crossRect = crosshair.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
 
-      const tx = targetBox.left + targetBox.width / 2;
-      const ty = targetBox.top + targetBox.height / 2;
-      const dist = Math.hypot(cx - tx, cy - ty);
+      const hit =
+        crossRect.left < targetRect.right &&
+        crossRect.right > targetRect.left &&
+        crossRect.top < targetRect.bottom &&
+        crossRect.bottom > targetRect.top;
 
-      if (dist <= gun.spread) {
-        score++;
-        scoreEl.textContent = `Score: ${score}`;
-        target.remove();
-        createTarget();
-      }
+      if (hit) updateScore();
     }
 
     function startGame() {
       const inputTime = parseInt(timeInput.value);
       if (isNaN(inputTime) || inputTime < 30 || inputTime > 100) {
-        alert("Enter a time between 30 and 100 seconds.");
-        return;
-      }
-      if (!selectedGun) {
-        alert("Please select a gun.");
+        alert("Please enter a valid time between 30 and 100 seconds.");
         return;
       }
 
       score = 0;
       timeLeft = inputTime;
-      scoreEl.textContent = `Score: 0`;
+      targetSize = 50;
+      scoreEl.textContent = `Score: ${score}`;
       timerEl.textContent = `Time: ${timeLeft}`;
-      if (target) target.remove();
+      playArea.innerHTML = '';
       createTarget();
 
-      clearInterval(gameInterval);
       gameInterval = setInterval(() => {
         timeLeft--;
         timerEl.textContent = `Time: ${timeLeft}`;
         if (timeLeft <= 0) {
           clearInterval(gameInterval);
           if (target) target.remove();
-          alert(`Time's up!\nScore: ${score}\nGun Used: ${selectedGun}`);
+          alert(`Time's up! Final Score: ${score}`);
         }
       }, 1000);
     }
 
-    startBtn.addEventListener("click", startGame);
-
-    window.addEventListener("mousemove", e => {
-      crosshair.style.left = e.clientX + "px";
-      crosshair.style.top = e.clientY + "px";
+    document.addEventListener('mousemove', (e) => {
+      crosshair.style.left = `${e.clientX}px`;
+      crosshair.style.top = `${e.clientY}px`;
     });
 
-    window.addEventListener("click", e => shoot(e.clientX, e.clientY));
-    window.addEventListener("touchstart", e => {
+    document.addEventListener('touchmove', (e) => {
       const touch = e.touches[0];
-      shoot(touch.clientX, touch.clientY);
+      crosshair.style.left = `${touch.clientX}px`;
+      crosshair.style.top = `${touch.clientY}px`;
     });
 
-    window.addEventListener("keydown", e => {
-      if (e.code === "Space") {
-        const rect = crosshair.getBoundingClientRect();
-        shoot(rect.left + 15, rect.top + 15);
-      }
+    document.addEventListener('click', shoot);
+    document.addEventListener('touchstart', shoot);
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') shoot();
     });
+
+    startBtn.addEventListener('click', startGame);
+    gunTypeSelect.addEventListener('change', updateGunModels);
   </script>
 </body>
 </html>
