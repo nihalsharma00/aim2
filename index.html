@@ -97,6 +97,7 @@
   const timerDisplay = document.getElementById("timer");
   const shootSound = document.getElementById("shootSound");
   const hitSound = document.getElementById("hitSound");
+  const maxEnemies = 7; // Maximum number of enemies that can spawn on the screen at a time
 
   let targets = [];
   let score = 0;
@@ -175,12 +176,29 @@
     if (e.code === "Space") shoot();
   });
 
-  function spawnTarget() {
-    const radius = Math.max(15, 40 - score * 0.5);
-    const x = Math.random() * (canvas.width - 2 * radius) + radius;
-    const y = Math.random() * (canvas.height - 2 * radius) + radius;
-    targets.push({ x, y, radius });
+function spawnTarget() {
+  // Only spawn a new target if the number of active targets is less than the maximum limit
+  if (targets.length >= maxEnemies) return;
+
+  const radius = Math.max(15, 40 - score * 0.5);
+  const x = Math.random() * (canvas.width - 2 * radius) + radius;
+  const y = Math.random() * (canvas.height - 2 * radius) + radius;
+  targets.push({ x, y, radius });
+}
+
+function gameLoop() {
+  if (!gameStarted) return;
+  
+  drawTargets();
+  
+  // Spawn a target at a low rate (for example, 2% chance every frame)
+  if (Math.random() < 0.02 && targets.length < maxEnemies) {
+    spawnTarget();
   }
+  
+  requestAnimationFrame(gameLoop);
+}
+
 
   function drawTargets() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
