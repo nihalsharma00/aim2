@@ -2,23 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Humanoid Target Shooting Game</title>
+  <title>Shooting Game with Humanoid Target</title>
   <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
       height: 100%;
-      font-family: 'Segoe UI', sans-serif;
-      user-select: none;
-      background: #000;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background: black;
+      color: white;
     }
-    #gameCanvas {
+    video#bgVideo {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -1;
+    }
+    canvas {
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
       cursor: none;
-      z-index: 1;
     }
     #crosshair {
       position: absolute;
@@ -26,38 +32,35 @@
       height: 30px;
       pointer-events: none;
       transform: translate(-50%, -50%);
-      z-index: 2;
+      z-index: 10;
     }
     #score, #timer {
       position: absolute;
-      color: white;
-      font-size: 24px;
       padding: 10px 20px;
-      background: rgba(0, 0, 0, 0.5);
-      border-radius: 12px;
-      z-index: 3;
+      font-size: 22px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 10px;
+      z-index: 20;
     }
     #score { top: 10px; left: 10px; }
     #timer { top: 10px; right: 10px; }
-    #settings {
+    #startScreen {
       position: absolute;
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(0,0,0,0.8);
-      color: white;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.8);
       padding: 30px;
       border-radius: 15px;
-      z-index: 4;
       text-align: center;
     }
-    #settings input {
-      width: 60px;
-      padding: 5px;
+    #startScreen input {
+      width: 80px;
+      padding: 8px;
+      margin: 10px;
       font-size: 18px;
-      text-align: center;
     }
-    #settings button {
-      margin-top: 15px;
+    #startScreen button {
       padding: 10px 25px;
       font-size: 18px;
       cursor: pointer;
@@ -65,98 +68,154 @@
   </style>
 </head>
 <body>
+  <video id="bgVideo" autoplay muted loop>
+    <source src="https://videocdn.cdnpk.net/videos/4ef50a66-8e72-5444-90ea-97f432d94e59/horizontal/previews/watermarked/small.mp4" type="video/mp4">
+  </video>
 
-<canvas id="gameCanvas"></canvas>
-<img id="crosshair" src="https://cdn-icons-png.flaticon.com/128/4018/4018979.png" alt="crosshair">
-<div id="score">Score: 0</div>
-<div id="timer">Time: 0</div>
+  <canvas id="gameCanvas"></canvas>
+  <img id="crosshair" src="https://cdn-icons-png.flaticon.com/128/4018/4018979.png" alt="Crosshair">
+  <div id="score">Score: 0</div>
+  <div id="timer">Time: 0</div>
 
-<div id="settings">
-  <h2>Set Game Time (30–100 seconds)</h2>
-  <input type="number" id="gameTimeInput" min="30" max="100" value="60"> seconds<br>
-  <button onclick="startGame()">Start Game</button>
-</div>
+  <div id="startScreen">
+    <h2>Humanoid Target Shooting</h2>
+    <p>Set Game Duration (seconds):</p>
+    <input id="gameDuration" type="number" min="30" max="100" value="60">
+    <br>
+    <button onclick="startGame()">Start</button>
+  </div>
 
-<audio id="shootSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_ef60e03e77.mp3" preload="auto"></audio>
-<audio id="hitSound" src="https://cdn.pixabay.com/download/audio/2022/10/05/audio_44e7fa0c7b.mp3" preload="auto"></audio>
+  <audio id="shootSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_ef60e03e77.mp3" preload="auto"></audio>
+  <audio id="hitSound" src="https://cdn.pixabay.com/download/audio/2022/10/05/audio_44e7fa0c7b.mp3" preload="auto"></audio>
 
-<script>
-  const canvas = document.getElementById("gameCanvas");
-  const ctx = canvas.getContext("2d");
-  const crosshair = document.getElementById("crosshair");
-  const scoreDisplay = document.getElementById("score");
-  const timerDisplay = document.getElementById("timer");
-  const shootSound = document.getElementById("shootSound");
-  const hitSound = document.getElementById("hitSound");
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const crosshair = document.getElementById("crosshair");
+    const shootSound = document.getElementById("shootSound");
+    const hitSound = document.getElementById("hitSound");
+    const scoreDisplay = document.getElementById("score");
+    const timerDisplay = document.getElementById("timer");
 
-  let targets = [];
-  let score = 0;
-  let gameTime = 60;
-  let remainingTime = 0;
-  let gameStarted = false;
-  let cursorX = window.innerWidth / 2;
-  let cursorY = window.innerHeight / 2;
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
 
-  const targetImage = new Image();
-  targetImage.src = "https://cdn-icons-png.flaticon.com/128/3082/3082383.png"; // Humanoid target image
+    let score = 0;
+    let timeLeft = 60;
+    let gameRunning = false;
+    let targets = [];
 
-  function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
+    const humanoidImg = new Image();
+    humanoidImg.src = "https://cdn-icons-png.flaticon.com/512/3082/3082383.png"; // Humanoid figure
 
-  resizeCanvas();
-  window.addEventListener("resize", resizeCanvas);
+    function spawnTarget() {
+      const size = 120;
+      const x = Math.random() * (width - size) + size / 2;
+      const y = Math.random() * (height - size) + size / 2;
+      targets.push({ x, y, size });
+    }
 
-  document.addEventListener("mousemove", e => {
-    cursorX = e.clientX;
-    cursorY = e.clientY;
-    crosshair.style.left = cursorX + "px";
-    crosshair.style.top = cursorY + "px";
-  });
+    function drawTargets() {
+      targets.forEach(t => {
+        ctx.drawImage(humanoidImg, t.x - t.size / 2, t.y - t.size / 2, t.size, t.size);
+      });
+    }
 
-  document.addEventListener("touchmove", e => {
-    if (e.touches.length > 0) {
-      cursorX = e.touches[0].clientX;
-      cursorY = e.touches[0].clientY;
+    let cursorX = width / 2;
+    let cursorY = height / 2;
+
+    document.addEventListener("mousemove", e => {
+      cursorX = e.clientX;
+      cursorY = e.clientY;
       crosshair.style.left = cursorX + "px";
       crosshair.style.top = cursorY + "px";
-    }
-  }, { passive: false });
+    });
 
-  function shoot() {
-    if (!gameStarted) return;
-    shootSound.currentTime = 0;
-    shootSound.play();
-    for (let i = 0; i < targets.length; i++) {
-      const t = targets[i];
-      const dx = cursorX - t.x;
-      const dy = cursorY - t.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < t.size / 2) {
-        const relativeX = cursorX - (t.x - t.size / 2);
-        const relativeY = cursorY - (t.y - t.size / 2);
-        let points = 0;
-        if (relativeY < t.size * 0.2) {
-          points = 10; // Head
-        } else if (relativeY < t.size * 0.5) {
-          points = 5; // Chest
-        } else {
-          points = 2; // Limbs
+    document.addEventListener("touchmove", e => {
+      if (e.touches.length > 0) {
+        cursorX = e.touches[0].clientX;
+        cursorY = e.touches[0].clientY;
+        crosshair.style.left = cursorX + "px";
+        crosshair.style.top = cursorY + "px";
+      }
+    });
+
+    function shoot() {
+      if (!gameRunning) return;
+      shootSound.currentTime = 0;
+      shootSound.play();
+
+      for (let i = 0; i < targets.length; i++) {
+        const t = targets[i];
+        const dx = cursorX - t.x;
+        const dy = cursorY - t.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < t.size / 2) {
+          const relY = cursorY - (t.y - t.size / 2);
+          let points = 0;
+          if (relY < t.size * 0.25) points = 10;        // Head
+          else if (relY < t.size * 0.6) points = 5;      // Chest
+          else points = 2;                               // Limbs
+
+          hitSound.currentTime = 0;
+          hitSound.play();
+          score += points;
+          scoreDisplay.innerText = "Score: " + score;
+          targets.splice(i, 1);
+          break;
         }
-        hitSound.currentTime = 0;
-        hitSound.play();
-        targets.splice(i, 1);
-        score += points;
-        scoreDisplay.innerText = "Score: " + score;
-        break;
       }
     }
-  }
 
-  document.addEventListener("click", shoot);
-  document.addEventListener("touchstart", shoot);
-  document.addEventListener("keydown", e => {
-    if
-::contentReference[oaicite:12]{index=12}
- 
+    document.addEventListener("click", shoot);
+    document.addEventListener("touchstart", shoot);
+    document.addEventListener("keydown", e => {
+      if (e.code === "Space") shoot();
+    });
+
+    function gameLoop() {
+      if (!gameRunning) return;
+      ctx.clearRect(0, 0, width, height);
+      drawTargets();
+
+      if (Math.random() < 0.02) spawnTarget();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function startGame() {
+      const input = document.getElementById("gameDuration").value;
+      timeLeft = Math.max(30, Math.min(100, parseInt(input) || 60));
+      score = 0;
+      targets = [];
+      document.getElementById("startScreen").style.display = "none";
+      scoreDisplay.innerText = "Score: 0";
+      timerDisplay.innerText = "Time: " + timeLeft;
+      gameRunning = true;
+
+      const timer = setInterval(() => {
+        timeLeft--;
+        timerDisplay.innerText = "Time: " + timeLeft;
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          gameRunning = false;
+          alert("Time's up! Final Score: " + score);
+          document.getElementById("startScreen").style.display = "block";
+        }
+      }, 1000);
+
+      gameLoop();
+    }
+
+    window.addEventListener("resize", () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+    });
+  </script>
+</body>
+</html>
