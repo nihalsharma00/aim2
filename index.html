@@ -97,7 +97,7 @@
   const timerDisplay = document.getElementById("timer");
   const shootSound = document.getElementById("shootSound");
   const hitSound = document.getElementById("hitSound");
-  const maxEnemies = 7;
+  const maxEnemies = 7; // Maximum number of enemies that can spawn on the screen at a time
 
   let targets = [];
   let score = 0;
@@ -110,9 +110,6 @@
   let cursorY = window.innerHeight / 2;
   let totalShots = 0;
   let totalHits = 0;
-
-  const targetImage = new Image();
-  targetImage.src = "https://t3.ftcdn.net/jpg/05/82/90/86/240_F_582908628_eJZIFOY0Jfqo1e8TMBaNr18zTrbkFC6v.jpg";
 
   function resizeCanvas() {
     canvas.width = window.innerWidth;
@@ -149,27 +146,26 @@
 
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
-      if (cursorX >= t.x && cursorX <= t.x + t.width && cursorY >= t.y && cursorY <= t.y + t.height) {
-        let relY = cursorY - t.y;
-        let partHit = relY / t.height;
-        let points = 0;
-
-        if (partHit < 0.25) points = 5;
-        else if (partHit < 0.6) points = 3;
-        else points = 1;
-
-        score += points;
-        totalHits++;
-        combo++;
-        targets.splice(i, 1);
-        hit = true;
+      const dx = cursorX - t.x;
+      const dy = cursorY - t.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < t.radius) {
         hitSound.currentTime = 0;
         hitSound.play();
+        targets.splice(i, 1);
+        score++;
+        totalHits++;
+        hit = true;
         break;
       }
     }
 
-    if (!hit) combo = 0;
+    if (hit) {
+      combo++;
+    } else {
+      combo = 0;
+    }
+
     accuracy = (totalHits / totalShots) * 100;
     scoreDisplay.innerText = `Score: ${score} | Accuracy: ${accuracy.toFixed(1)}% | Combo: ${combo}`;
   }
@@ -180,19 +176,37 @@
     if (e.code === "Space") shoot();
   });
 
-  function spawnTarget() {
-    if (targets.length >= maxEnemies) return;
-    const width = 80;
-    const height = 150;
-    const x = Math.random() * (canvas.width - width);
-    const y = Math.random() * (canvas.height - height);
-    targets.push({ x, y, width, height });
+function spawnTarget() {
+  // Only spawn a new target if the number of active targets is less than the maximum limit
+  if (targets.length >= maxEnemies) return;
+
+  const radius = Math.max(15, 40 - score * 0.5);
+  const x = Math.random() * (canvas.width - 2 * radius) + radius;
+  const y = Math.random() * (canvas.height - 2 * radius) + radius;
+  targets.push({ x, y, radius });
+}
+
+function gameLoop() {
+  if (!gameStarted) return;
+  
+  drawTargets();
+  
+  // Spawn a target at a low rate (for example, 2% chance every frame)
+  if (Math.random() < 0.02 && targets.length < maxEnemies) {
+    spawnTarget();
   }
+  
+  requestAnimationFrame(gameLoop);
+}
+
 
   function drawTargets() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     targets.forEach(t => {
-      ctx.drawImage(targetImage, t.x, t.y, t.width, t.height);
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
+      ctx.fillStyle = "red";
+      ctx.fill();
     });
   }
 
