@@ -1,26 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Shooting Game with Humanoid Target</title>
+  <meta charset="UTF-8">
+  <title>Shooting Game</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
-      height: 100%;
+      margin: 0;
+      padding: 0;
       overflow: hidden;
-      font-family: Arial, sans-serif;
-      background: black;
-      color: white;
+      height: 100%;
+      font-family: 'Segoe UI', sans-serif;
+      user-select: none;
     }
-    video#bgVideo {
+    #bg-video {
       position: fixed;
       top: 0; left: 0;
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       object-fit: cover;
       z-index: -1;
     }
-    canvas {
+    #gameCanvas {
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
@@ -36,31 +35,34 @@
     }
     #score, #timer {
       position: absolute;
+      color: white;
+      font-size: 24px;
       padding: 10px 20px;
-      font-size: 22px;
-      background: rgba(0,0,0,0.5);
-      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 12px;
       z-index: 20;
     }
     #score { top: 10px; left: 10px; }
     #timer { top: 10px; right: 10px; }
-    #startScreen {
+    #settings {
       position: absolute;
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
-      z-index: 100;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0,0,0,0.8);
+      color: white;
       padding: 30px;
       border-radius: 15px;
+      z-index: 30;
       text-align: center;
     }
-    #startScreen input {
-      width: 80px;
-      padding: 8px;
-      margin: 10px;
+    #settings input {
+      width: 60px;
+      padding: 5px;
       font-size: 18px;
+      text-align: center;
     }
-    #startScreen button {
+    #settings button {
+      margin-top: 15px;
       padding: 10px 25px;
       font-size: 18px;
       cursor: pointer;
@@ -68,154 +70,143 @@
   </style>
 </head>
 <body>
- <video id="bgVideo" autoplay muted loop playsinline>
-  <source src="https://cdn.coverr.co/videos/coverr-a-deserted-road-3776/1080p.mp4" type="video/mp4">
- </video>
 
-  <canvas id="gameCanvas"></canvas>
-  <img id="crosshair" src="https://cdn-icons-png.flaticon.com/128/4018/4018979.png" alt="Crosshair">
-  <div id="score">Score: 0</div>
-  <div id="timer">Time: 0</div>
+<video id="bg-video" autoplay muted loop>
+  <source src="https://videocdn.cdnpk.net/videos/4ef50a66-8e72-5444-90ea-97f432d94e59/horizontal/previews/watermarked/small.mp4" type="video/mp4">
+</video>
 
-  <div id="startScreen">
-    <h2>Humanoid Target Shooting</h2>
-    <p>Set Game Duration (seconds):</p>
-    <input id="gameDuration" type="number" min="30" max="100" value="60">
-    <br>
-    <button onclick="startGame()">Start</button>
-  </div>
+<canvas id="gameCanvas"></canvas>
+<img id="crosshair" src="https://cdn-icons-png.flaticon.com/128/4018/4018979.png" alt="crosshair">
+<div id="score">Score: 0</div>
+<div id="timer">Time: 0</div>
 
-  <audio id="shootSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_ef60e03e77.mp3" preload="auto"></audio>
-  <audio id="hitSound" src="https://cdn.pixabay.com/download/audio/2022/10/05/audio_44e7fa0c7b.mp3" preload="auto"></audio>
+<div id="settings">
+  <h2>Set Game Time (30–100 seconds)</h2>
+  <input type="number" id="gameTimeInput" min="30" max="100" value="60"> seconds<br>
+  <button onclick="startGame()">Start Game</button>
+</div>
 
-  <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const crosshair = document.getElementById("crosshair");
-    const shootSound = document.getElementById("shootSound");
-    const hitSound = document.getElementById("hitSound");
-    const scoreDisplay = document.getElementById("score");
-    const timerDisplay = document.getElementById("timer");
+<audio id="shootSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_ef60e03e77.mp3" preload="auto"></audio>
+<audio id="hitSound" src="https://cdn.pixabay.com/download/audio/2022/10/05/audio_44e7fa0c7b.mp3" preload="auto"></audio>
 
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
+<script>
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+  const crosshair = document.getElementById("crosshair");
+  const scoreDisplay = document.getElementById("score");
+  const timerDisplay = document.getElementById("timer");
+  const shootSound = document.getElementById("shootSound");
+  const hitSound = document.getElementById("hitSound");
 
-    let score = 0;
-    let timeLeft = 60;
-    let gameRunning = false;
-    let targets = [];
+  let targets = [];
+  let score = 0;
+  let gameTime = 60;
+  let remainingTime = 0;
+  let gameStarted = false;
+  let cursorX = window.innerWidth / 2;
+  let cursorY = window.innerHeight / 2;
+  let shooting = false;
 
-    const humanoidImg = new Image();
-    humanoidImg.src = "https://cdn-icons-png.flaticon.com/512/3082/3082383.png"; // Humanoid figure
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
 
-    function spawnTarget() {
-      const size = 120;
-      const x = Math.random() * (width - size) + size / 2;
-      const y = Math.random() * (height - size) + size / 2;
-      targets.push({ x, y, size });
-    }
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
 
-    function drawTargets() {
-      targets.forEach(t => {
-        ctx.drawImage(humanoidImg, t.x - t.size / 2, t.y - t.size / 2, t.size, t.size);
-      });
-    }
+  document.addEventListener("mousemove", e => {
+    cursorX = e.clientX;
+    cursorY = e.clientY;
+    crosshair.style.left = cursorX + "px";
+    crosshair.style.top = cursorY + "px";
+  });
 
-    let cursorX = width / 2;
-    let cursorY = height / 2;
-
-    document.addEventListener("mousemove", e => {
-      cursorX = e.clientX;
-      cursorY = e.clientY;
+  document.addEventListener("touchmove", e => {
+    if (e.touches.length > 0) {
+      cursorX = e.touches[0].clientX;
+      cursorY = e.touches[0].clientY;
       crosshair.style.left = cursorX + "px";
       crosshair.style.top = cursorY + "px";
-    });
+    }
+  }, { passive: false });
 
-    document.addEventListener("touchmove", e => {
-      if (e.touches.length > 0) {
-        cursorX = e.touches[0].clientX;
-        cursorY = e.touches[0].clientY;
-        crosshair.style.left = cursorX + "px";
-        crosshair.style.top = cursorY + "px";
-      }
-    });
-
-    function shoot() {
-      if (!gameRunning) return;
-      shootSound.currentTime = 0;
-      shootSound.play();
-
-      for (let i = 0; i < targets.length; i++) {
-        const t = targets[i];
-        const dx = cursorX - t.x;
-        const dy = cursorY - t.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < t.size / 2) {
-          const relY = cursorY - (t.y - t.size / 2);
-          let points = 0;
-          if (relY < t.size * 0.25) points = 10;        // Head
-          else if (relY < t.size * 0.6) points = 5;      // Chest
-          else points = 2;                               // Limbs
-
-          hitSound.currentTime = 0;
-          hitSound.play();
-          score += points;
-          scoreDisplay.innerText = "Score: " + score;
-          targets.splice(i, 1);
-          break;
-        }
+  function shoot() {
+    if (!gameStarted) return;
+    shootSound.currentTime = 0;
+    shootSound.play();
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      const dx = cursorX - t.x;
+      const dy = cursorY - t.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < t.radius) {
+        hitSound.currentTime = 0;
+        hitSound.play();
+        targets.splice(i, 1);
+        score++;
+        scoreDisplay.innerText = "Score: " + score;
+        break;
       }
     }
+  }
 
-    document.addEventListener("click", shoot);
-    document.addEventListener("touchstart", shoot);
-    document.addEventListener("keydown", e => {
-      if (e.code === "Space") shoot();
+  document.addEventListener("click", shoot);
+  document.addEventListener("touchstart", shoot);
+  document.addEventListener("keydown", e => {
+    if (e.code === "Space") shoot();
+  });
+
+  function spawnTarget() {
+    const radius = Math.max(15, 40 - score * 0.5);
+    const x = Math.random() * (canvas.width - 2 * radius) + radius;
+    const y = Math.random() * (canvas.height - 2 * radius) + radius;
+    targets.push({ x, y, radius });
+  }
+
+  function drawTargets() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    targets.forEach(t => {
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
+      ctx.fillStyle = "red";
+      ctx.fill();
     });
+  }
 
-    function gameLoop() {
-      if (!gameRunning) return;
-      ctx.clearRect(0, 0, width, height);
-      drawTargets();
-
-      if (Math.random() < 0.02) spawnTarget();
-
-      requestAnimationFrame(gameLoop);
+  function updateTimer() {
+    if (remainingTime <= 0) {
+      gameStarted = false;
+      alert("Game Over!\nYour score: " + score);
+      document.getElementById("settings").style.display = "block";
+      return;
     }
+    remainingTime--;
+    timerDisplay.innerText = "Time: " + remainingTime;
+    setTimeout(updateTimer, 1000);
+  }
 
-    function startGame() {
-      const input = document.getElementById("gameDuration").value;
-      timeLeft = Math.max(30, Math.min(100, parseInt(input) || 60));
-      score = 0;
-      targets = [];
-      document.getElementById("startScreen").style.display = "none";
-      scoreDisplay.innerText = "Score: 0";
-      timerDisplay.innerText = "Time: " + timeLeft;
-      gameRunning = true;
+  function gameLoop() {
+    if (!gameStarted) return;
+    drawTargets();
+    if (Math.random() < 0.02) spawnTarget();
+    requestAnimationFrame(gameLoop);
+  }
 
-      const timer = setInterval(() => {
-        timeLeft--;
-        timerDisplay.innerText = "Time: " + timeLeft;
-        if (timeLeft <= 0) {
-          clearInterval(timer);
-          gameRunning = false;
-          alert("Time's up! Final Score: " + score);
-          document.getElementById("startScreen").style.display = "block";
-        }
-      }, 1000);
+  function startGame() {
+    gameTime = parseInt(document.getElementById("gameTimeInput").value);
+    if (isNaN(gameTime) || gameTime < 30 || gameTime > 100) gameTime = 60;
+    score = 0;
+    scoreDisplay.innerText = "Score: 0";
+    remainingTime = gameTime;
+    targets = [];
+    gameStarted = true;
+    document.getElementById("settings").style.display = "none";
+    timerDisplay.innerText = "Time: " + gameTime;
+    updateTimer();
+    gameLoop();
+  }
+</script>
 
-      gameLoop();
-    }
-
-    window.addEventListener("resize", () => {
-      width = window.innerWidth;
-      height = window.innerHeight;
-      canvas.width = width;
-      canvas.height = height;
-    });
-  </script>
 </body>
 </html>
